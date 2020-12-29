@@ -1,5 +1,8 @@
+
+
 #[cfg(test)]
 mod tests {
+
   extern crate rqtl2;
   use std::collections::HashMap;
   use std::env;
@@ -7,6 +10,7 @@ mod tests {
   use std::io::prelude::*;
   use std::io::BufReader;
   use std::io::SeekFrom;
+  use rqtl2::reader::consume_comments2 as consume_comments2;
 
   fn create_test_file(name: &str, contents: &str) -> std::io::Result<fs::File> {
     let mut path = env::temp_dir();
@@ -36,7 +40,7 @@ mod tests {
     let markers = rqtl2::util::parse_markers(&mut f).expect("Parsing failed");
     assert_eq!(["test file", "comment"], &comments[..]);
     assert_eq!(["10", "12", "38", "39"], &markers[..]);
-    let consumed_comments = GenoParser::consume_comments(&mut BufReader::new(
+    let consumed_comments = consume_comments2(&mut BufReader::new(
       f.try_clone().expect("Failed cloning file handler"),
     ))
     .expect("Parsing failed");

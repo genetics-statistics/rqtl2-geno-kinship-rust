@@ -1,3 +1,4 @@
+// -*- mode: Rust; rust-indent-unit: 2; -*-
 /// @brief Tools for working with RQTL2 format.
 ///
 /// From
@@ -12,6 +13,9 @@
 /// column is a set of IDs for the rows, and the first row is a set of IDs for
 /// the columns. For example, the phenotype data file will have individual IDs
 /// in the first column and phenotype names in the first row.
+
+pub mod reader;
+
 pub mod util {
   use std::collections::HashMap;
   use std::fs::File;
@@ -19,6 +23,8 @@ pub mod util {
   use std::io::BufReader;
   use std::io::Seek;
   use std::io::SeekFrom;
+  use crate::reader::consume_comments2 as consume_comments2;
+
   /// @brief Batch size (number of lines to read).
   /// @brief R/QTL2 genotype data file parser.
   ///
@@ -46,7 +52,7 @@ pub mod util {
 
     pub fn new_with_file(file: File, hab_mapper: HashMap<char, f64>) -> std::io::Result<Self> {
       let mut file_reader = BufReader::new(file);
-      let comments = Self::consume_comments(&mut file_reader)?;
+      let comments = consume_comments2(&mut file_reader)?;
       let markers = Self::consume_markers(&mut file_reader)?;
       Ok(GenoParser {
         snp_pos_start: file_reader.seek(SeekFrom::Current(0))?,
@@ -315,32 +321,6 @@ pub mod util {
       Ok(res)
     }
 
-    /// @brief Consumes comments lines from the stream. File cursor is left right
-    /// after comments.
-    pub fn consume_comments(file_reader: &mut BufReader<File>) -> std::io::Result<Vec<String>> {
-      let mut buf_str = String::new();
-      let mut res = Vec::<String>::new();
-      let mut comments_bytes_count: u64 = 0;
-      loop {
-        let read_bytes_count: usize = file_reader.read_line(&mut buf_str)?;
-        if buf_str.starts_with('#') {
-          res.push(String::from(&buf_str[1..buf_str.len() - 1]));
-        } else {
-          // read_line returns Ok(0) when reached EOF.
-          if read_bytes_count == 0 {
-            return Err(std::io::Error::new(
-              std::io::ErrorKind::InvalidInput,
-              "File is empty.",
-            ));
-          }
-          file_reader.seek(SeekFrom::Start(comments_bytes_count))?;
-          return Ok(res);
-        }
-        buf_str.clear();
-        comments_bytes_count += read_bytes_count as u64;
-      }
-    }
-
     /// @brief Consumes markers line from BufRead. File cursor is left right
     /// after comments.
     pub fn consume_markers(file_reader: &mut BufReader<File>) -> std::io::Result<Vec<String>> {
@@ -408,7 +388,7 @@ pub mod util {
     hab_mapper: &HashMap<char, f64>,
   ) -> std::io::Result<Vec<(String, Vec<f64>)>> {
     let mut file_reader = BufReader::new(file.try_clone()?);
-    GenoParser::consume_comments(&mut file_reader)?;
+    consume_comments2(&mut file_reader)?;
     GenoParser::consume_markers(&mut file_reader)?;
     read_geno(&mut file_reader, hab_mapper)
   }
@@ -418,7 +398,7 @@ pub mod util {
   /// Example: marker	10	12	38	39	42	54
   pub fn parse_markers(file: &mut File) -> std::io::Result<Vec<String>> {
     let mut buf_reader = BufReader::new(file.try_clone()?);
-    GenoParser::consume_comments(&mut buf_reader)?;
+    consume_comments2(&mut buf_reader)?;
     let res = GenoParser::consume_markers(&mut buf_reader);
     file.seek(SeekFrom::Start(0))?;
     res
@@ -431,7 +411,7 @@ pub mod util {
   /// # These are comments.
   /// # Only at the beginning of the R/QTL2 file geno file.
   pub fn parse_comments(file: &mut File) -> std::io::Result<Vec<String>> {
-    let res = GenoParser::consume_comments(&mut BufReader::new(file.try_clone()?));
+    let res = consume_comments2(&mut BufReader::new(file.try_clone()?));
     file.seek(SeekFrom::Start(0))?;
     res
   }
